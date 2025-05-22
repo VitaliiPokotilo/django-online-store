@@ -1,26 +1,33 @@
 name: CI/CD Pipeline to Render
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Build and test Docker image
         run: |
           docker build -t django-online-store:test .
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Deploy to Render
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
@@ -32,7 +39,7 @@ jobs:
             -d '{}')
           DEPLOY_ID=$(echo $DEPLOY_RESPONSE | jq -r '.id')
           echo "Deploy ID: $DEPLOY_ID"
-          # Перевірка статусу з затримкою
+
           STATUS="in_progress"
           MAX_ATTEMPTS=5
           ATTEMPT=1
@@ -43,7 +50,8 @@ jobs:
             echo "Attempt $ATTEMPT: Deploy status: $STATUS"
             ((ATTEMPT++))
           done
-          if [ "$STATUS" = "error" ] || [ "$ATTEMPT" -gt "$MAX_ATTEMPTS" ]; then
+
+          if [ "$STATUS" = "error" ] || [ $ATTEMPT -gt $MAX_ATTEMPTS ]; then
             echo "Deploy failed or timed out with status: $STATUS"
             exit 1
           fi
